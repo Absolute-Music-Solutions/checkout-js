@@ -8,6 +8,7 @@ import { createLocaleContext, LocaleContext } from '@bigcommerce/checkout/locale
 import { getStoreConfig } from '../../config/config.mock';
 
 import HostedCreditCardCodeField from './HostedCreditCardCodeField';
+import HostedCreditCardExpiryField from './HostedCreditCardExpiryField';
 import HostedCreditCardNumberField from './HostedCreditCardNumberField';
 import HostedCreditCardValidation, {
     HostedCreditCardValidationProps,
@@ -50,5 +51,17 @@ describe('HostedCreditCardValidation', () => {
         const component = mount(<HostedCreditCardValidationTest cardNumberId="cardNumber" />);
 
         expect(component.find(HostedCreditCardCodeField)).toHaveLength(0);
+    });
+
+    it('shows card expiry field if configured', () => {
+        const component = mount(<HostedCreditCardValidationTest cardExpiryId="cardExpiry" />);
+
+        expect(component.find(HostedCreditCardExpiryField)).toHaveLength(1);
+    });
+
+    it('hides card expiry field if configured', () => {
+        const component = mount(<HostedCreditCardValidationTest cardNumberId="cardCode" />);
+
+        expect(component.find(HostedCreditCardExpiryField)).toHaveLength(0);
     });
 });

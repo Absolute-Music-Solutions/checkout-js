@@ -14,13 +14,15 @@ import {
     ShippingInitializeOptions,
     ShippingRequestOptions,
 } from '@bigcommerce/checkout-sdk';
-import React, { useEffect } from 'react';
+import React from 'react';
 
 import { withLanguage, WithLanguageProps } from '@bigcommerce/checkout/locale';
-import { isPaypalConnectMethod, usePayPalConnectAddress } from '@bigcommerce/checkout/paypal-connect-integration';
 
 import MultiShippingForm, { MultiShippingFormValues } from './MultiShippingForm';
+import MultiShippingFormV2 from './MultiShippingFormV2';
+import MultiShippingGuestForm from './MultiShippingGuestForm';
 import SingleShippingForm, { SingleShippingFormValues } from './SingleShippingForm';
+import { useExtensions } from '@bigcommerce/checkout/checkout-extension';
 
 export interface ShippingFormProps {
     addresses: CustomerAddress[];
@@ -40,8 +42,11 @@ export interface ShippingFormProps {
     shippingAddress?: Address;
     shouldShowSaveAddress?: boolean;
     shouldShowOrderComments: boolean;
-    shouldShowAddAddressInCheckout: boolean;
     isFloatingLabelEnabled?: boolean;
+    isInitialValueLoaded: boolean;
+    isNewMultiShippingUIEnabled: boolean;
+    validateGoogleMapAutoCompleteMaxLength: boolean;
+    validateAddressFields: boolean;
     assignItem(consignment: ConsignmentAssignmentRequestBody): Promise<CheckoutSelectors>;
     deinitialize(options: ShippingRequestOptions): Promise<CheckoutSelectors>;
     deleteConsignments(): Promise<Address | undefined>;
@@ -62,52 +67,69 @@ export interface ShippingFormProps {
 }
 
 const ShippingForm = ({
-    addresses,
-    assignItem,
-    cart,
-    cartHasChanged,
-    createCustomerAddress,
-    consignments,
-    countries,
-    countriesWithAutocomplete,
-    onCreateAccount,
-    customerMessage,
-    deinitialize,
-    deleteConsignments,
-    getFields,
-    googleMapsApiKey,
-    initialize,
-    isBillingSameAsShipping,
-    isGuest,
-    isLoading,
-    isMultiShippingMode,
-    methodId,
-    onMultiShippingSubmit,
-    onSignIn,
-    onSingleShippingSubmit,
-    onUnhandledError,
-    onUseNewAddress,
-    shippingAddress,
-    shouldShowOrderComments,
-    shouldShowSaveAddress,
-    shouldShowAddAddressInCheckout,
-    signOut,
-    updateAddress,
-    isShippingStepPending,
-    isFloatingLabelEnabled,
-}: ShippingFormProps & WithLanguageProps) => {
-    const { isPayPalAxoEnabled, mergedBcAndPayPalConnectAddresses } = usePayPalConnectAddress();
-    const shippingAddresses = isPayPalAxoEnabled ? mergedBcAndPayPalConnectAddresses : addresses;
+      addresses,
+      assignItem,
+      cart,
+      cartHasChanged,
+      createCustomerAddress,
+      consignments,
+      countries,
+      countriesWithAutocomplete,
+      onCreateAccount,
+      customerMessage,
+      deinitialize,
+      deleteConsignments,
+      getFields,
+      googleMapsApiKey,
+      initialize,
+      isBillingSameAsShipping,
+      isGuest,
+      isLoading,
+      isMultiShippingMode,
+      methodId,
+      onMultiShippingSubmit,
+      onSignIn,
+      onSingleShippingSubmit,
+      onUnhandledError,
+      onUseNewAddress,
+      shippingAddress,
+      shouldShowOrderComments,
+      shouldShowSaveAddress,
+      signOut,
+      updateAddress,
+      isShippingStepPending,
+      isFloatingLabelEnabled,
+      isInitialValueLoaded,
+      isNewMultiShippingUIEnabled,
+      validateGoogleMapAutoCompleteMaxLength,
+      validateAddressFields,
+  }: ShippingFormProps & WithLanguageProps) => {
 
-    useEffect(() => {
-        if (isPaypalConnectMethod(methodId) && isPayPalAxoEnabled) {
-            initialize({ methodId });
+    const {
+        extensionState: { shippingFormRenderTimestamp },
+    } = useExtensions();
+
+    const getMultiShippingForm = () => {
+        if (isGuest) {
+            return (
+                <MultiShippingGuestForm onCreateAccount={onCreateAccount} onSignIn={onSignIn} />
+            );
         }
-    });
 
-    return isMultiShippingMode ? (
-        <MultiShippingForm
-            addresses={shippingAddresses}
+        if (isNewMultiShippingUIEnabled) {
+            return <MultiShippingFormV2
+                cartHasChanged={cartHasChanged}
+                countriesWithAutocomplete={countriesWithAutocomplete}
+                customerMessage={customerMessage}
+                defaultCountryCode={shippingAddress?.countryCode}
+                isLoading={isLoading}
+                onSubmit={onMultiShippingSubmit}
+                onUnhandledError={onUnhandledError}
+            />;
+        }
+
+        return <MultiShippingForm
+            addresses={addresses}
             assignItem={assignItem}
             cart={cart}
             cartHasChanged={cartHasChanged}
@@ -120,19 +142,21 @@ const ShippingForm = ({
             getFields={getFields}
             googleMapsApiKey={googleMapsApiKey}
             isFloatingLabelEnabled={isFloatingLabelEnabled}
-            isGuest={isGuest}
+            isInitialValueLoaded={isInitialValueLoaded}
             isLoading={isLoading}
-            onCreateAccount={onCreateAccount}
-            onSignIn={onSignIn}
             onSubmit={onMultiShippingSubmit}
             onUnhandledError={onUnhandledError}
             onUseNewAddress={onUseNewAddress}
-            shouldShowAddAddressInCheckout={shouldShowAddAddressInCheckout}
             shouldShowOrderComments={shouldShowOrderComments}
-        />
+            validateAddressFields={validateAddressFields}
+        />;
+    };
+
+    return isMultiShippingMode ? (
+        getMultiShippingForm()
     ) : (
         <SingleShippingForm
-            addresses={shippingAddresses}
+            addresses={addresses}
             cartHasChanged={cartHasChanged}
             consignments={consignments}
             countries={countries}
@@ -145,6 +169,7 @@ const ShippingForm = ({
             initialize={initialize}
             isBillingSameAsShipping={isBillingSameAsShipping}
             isFloatingLabelEnabled={isFloatingLabelEnabled}
+            isInitialValueLoaded={isInitialValueLoaded}
             isLoading={isLoading}
             isMultiShippingMode={isMultiShippingMode}
             isShippingStepPending={isShippingStepPending}
@@ -152,10 +177,13 @@ const ShippingForm = ({
             onSubmit={onSingleShippingSubmit}
             onUnhandledError={onUnhandledError}
             shippingAddress={shippingAddress}
+            shippingFormRenderTimestamp={shippingFormRenderTimestamp}
             shouldShowOrderComments={shouldShowOrderComments}
             shouldShowSaveAddress={shouldShowSaveAddress}
             signOut={signOut}
             updateAddress={updateAddress}
+            validateAddressFields={validateAddressFields}
+            validateGoogleMapAutoCompleteMaxLength={validateGoogleMapAutoCompleteMaxLength}
         />
     );
 };

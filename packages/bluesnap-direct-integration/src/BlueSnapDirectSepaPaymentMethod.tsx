@@ -1,45 +1,34 @@
 import React, { FunctionComponent, useCallback, useEffect, useState } from 'react';
 
 import {
+    AccountInstrumentFieldset,
+    StoreInstrumentFieldset,
+} from '@bigcommerce/checkout/instrument-utils';
+import {
     PaymentMethodProps,
     PaymentMethodResolveId,
     toResolvableComponent,
 } from '@bigcommerce/checkout/payment-integration-api';
-import { CheckboxFormField, Fieldset, Legend } from '@bigcommerce/checkout/ui';
+import { CheckboxFormField, Fieldset, Legend, LoadingOverlay } from '@bigcommerce/checkout/ui';
 
-import BlueSnapDirectTextField from './BlueSnapDirectTextField';
+import { isBlueSnapDirectInitializationData } from './BlueSnapDirectInitializationData';
+import BlueSnapDirectTextField from './fields/BlueSnapDirectTextField';
+import useSepaInstruments from './hooks/useSepaInstruments';
 import getSepaValidationSchema from './validation-schemas/getSepaValidationSchema';
 
-interface BlueSnapDirectInitializationData {
-    sepaCreditorCompanyName: string;
-}
+const BlueSnapDirectSepaPaymentMethod: FunctionComponent<PaymentMethodProps> = (props) => {
+    const {
+        method,
+        checkoutService: { initializePayment, deinitializePayment, loadInstruments },
+        checkoutState: {
+            data: { isPaymentDataRequired },
+            statuses: { isLoadingInstruments },
+        },
+        paymentForm: { disableSubmit, setValidationSchema },
+        language,
+        onUnhandledError,
+    } = props;
 
-const isBlueSnapDirectInitializationData = (
-    object: unknown,
-): object is BlueSnapDirectInitializationData => {
-    if (
-        !(
-            typeof object === 'object' &&
-            object !== null &&
-            'sepaCreditorCompanyName' in object &&
-            typeof object.sepaCreditorCompanyName === 'string'
-        )
-    ) {
-        return false;
-    }
-
-    return true;
-};
-
-const BlueSnapDirectSepaPaymentMethod: FunctionComponent<PaymentMethodProps> = ({
-    method,
-    checkoutService: { initializePayment, deinitializePayment },
-    checkoutState: {
-        data: { isPaymentDataRequired },
-    },
-    paymentForm: { disableSubmit, setValidationSchema },
-    language,
-}) => {
     if (!isBlueSnapDirectInitializationData(method.initializationData)) {
         throw new Error('Unable to get initialization data');
     }
@@ -56,13 +45,11 @@ const BlueSnapDirectSepaPaymentMethod: FunctionComponent<PaymentMethodProps> = (
     );
 
     const initializeSepa = useCallback(async () => {
-        setValidationSchema(method, getSepaValidationSchema(language));
-
         await initializePayment({
             gatewayId: method.gateway,
             methodId: method.id,
         });
-    }, [initializePayment, method, setValidationSchema, language]);
+    }, [initializePayment, method]);
 
     const deinitializeSepa = useCallback(async () => {
         await deinitializePayment({
@@ -79,43 +66,102 @@ const BlueSnapDirectSepaPaymentMethod: FunctionComponent<PaymentMethodProps> = (
         };
     }, [deinitializeSepa, initializeSepa]);
 
-    return (
-        <Fieldset
-            legend={
-                <Legend hidden>
-                    {language.translate('payment.bluesnap_direct_sepa_direct_debit')}
-                </Legend>
-            }
-            style={{ paddingBottom: '1rem' }}
-        >
-            <BlueSnapDirectTextField
-                autoComplete="iban"
-                labelContent={language.translate('payment.bluesnap_direct_iban.label')}
-                name="iban"
-                useFloatingLabel={true}
-            />
-            <BlueSnapDirectTextField
-                labelContent={language.translate('address.first_name_label')}
-                name="firstName"
-                useFloatingLabel={true}
-            />
-            <BlueSnapDirectTextField
-                labelContent={language.translate('address.last_name_label')}
-                name="lastName"
-                useFloatingLabel={true}
-            />
+    const {
+        accountInstruments,
+        currentInstrument,
+        handleSelectInstrument,
+        handleUseNewInstrument,
+        isInstrumentFeatureAvailable,
+        shouldShowInstrumentFieldset,
+        shouldCreateNewInstrument,
+    } = useSepaInstruments(method);
 
-            <CheckboxFormField
-                labelContent={language.translate(
-                    'payment.bluesnap_direct_sepa_mandate_disclaimer',
-                    {
-                        creditorName: method.initializationData.sepaCreditorCompanyName,
-                    },
+    const shouldShowForm = !shouldShowInstrumentFieldset || shouldCreateNewInstrument;
+
+    useEffect(() => {
+        setValidationSchema(method, getSepaValidationSchema(language, shouldShowForm));
+    }, [language, shouldShowForm, setValidationSchema, method]);
+
+    useEffect(() => {
+        const loadInstrumentsOrThrow = async () => {
+            try {
+                await loadInstruments();
+            } catch (error) {
+                if (error instanceof Error) {
+                    onUnhandledError(error);
+                }
+            }
+        };
+
+        if (isInstrumentFeatureAvailable) {
+            void loadInstrumentsOrThrow();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const isLoading = isLoadingInstruments();
+
+    return (
+        <LoadingOverlay hideContentWhenLoading isLoading={isLoading}>
+            <Fieldset
+                legend={
+                    <Legend hidden>
+                        {language.translate('payment.bluesnap_direct_sepa_direct_debit')}
+                    </Legend>
+                }
+                style={{ paddingBottom: '1rem' }}
+            >
+                {shouldShowInstrumentFieldset && (
+                    <div className="checkout-ach-form__instrument">
+                        <AccountInstrumentFieldset
+                            instruments={accountInstruments}
+                            onSelectInstrument={handleSelectInstrument}
+                            onUseNewInstrument={handleUseNewInstrument}
+                            selectedInstrument={currentInstrument}
+                        />
+                    </div>
                 )}
-                name="shopperPermission"
-                onChange={toggleSubmitButton}
-            />
-        </Fieldset>
+                {shouldShowForm && (
+                    <>
+                        <BlueSnapDirectTextField
+                            autoComplete="iban"
+                            labelContent={language.translate('payment.bluesnap_direct_iban.label')}
+                            name="iban"
+                            useFloatingLabel={true}
+                        />
+                        <BlueSnapDirectTextField
+                            labelContent={language.translate('address.first_name_label')}
+                            name="firstName"
+                            useFloatingLabel={true}
+                        />
+                        <BlueSnapDirectTextField
+                            labelContent={language.translate('address.last_name_label')}
+                            name="lastName"
+                            useFloatingLabel={true}
+                        />
+                    </>
+                )}
+
+                <CheckboxFormField
+                    labelContent={language.translate(
+                        'payment.bluesnap_direct_sepa_mandate_disclaimer',
+                        {
+                            creditorName: method.initializationData.sepaCreditorCompanyName,
+                        },
+                    )}
+                    name="shopperPermission"
+                    onChange={toggleSubmitButton}
+                />
+
+                {isInstrumentFeatureAvailable && (
+                    <StoreInstrumentFieldset
+                        instrumentId={currentInstrument?.bigpayToken}
+                        instruments={accountInstruments}
+                        isAccountInstrument
+                    />
+                )}
+            </Fieldset>
+        </LoadingOverlay>
     );
 };
 

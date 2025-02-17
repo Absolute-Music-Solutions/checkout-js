@@ -16,8 +16,11 @@ import {
 } from '@bigcommerce/checkout/analytics';
 import { ExtensionProvider } from '@bigcommerce/checkout/checkout-extension';
 import { getLanguageService, LocaleProvider } from '@bigcommerce/checkout/locale';
-import { CHECKOUT_ROOT_NODE_ID, CheckoutProvider } from '@bigcommerce/checkout/payment-integration-api';
-import { CheckoutPageNodeObject } from '@bigcommerce/checkout/test-framework';
+import {
+    CHECKOUT_ROOT_NODE_ID,
+    CheckoutProvider,
+} from '@bigcommerce/checkout/payment-integration-api';
+import { CheckoutPageNodeObject, CheckoutPreset } from '@bigcommerce/checkout/test-framework';
 
 import { createErrorLogger } from '../common/error';
 import {
@@ -114,8 +117,17 @@ describe('Checkout', () => {
             expect(defaultProps.embeddedStylesheet.append).toHaveBeenCalledWith(styles);
         });
 
+        it('render component with proper id', async () => {
+            render(<CheckoutTest {...defaultProps} />);
+            await checkout.waitForCustomerStep();
+
+            const wrapper = screen.getByTestId('checkout-page-container');
+
+            expect(wrapper).toBeInTheDocument();
+        });
+
         it('renders list of promotion banners', async () => {
-            checkout.use('CartWithPromotions');
+            checkout.use(CheckoutPreset.CheckoutWithPromotions);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -127,7 +139,7 @@ describe('Checkout', () => {
         });
 
         it('renders modal error when theres an error flash message', async () => {
-            checkout.use('ErrorFlashMessage');
+            checkout.use(CheckoutPreset.ErrorFlashMessage);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -137,7 +149,7 @@ describe('Checkout', () => {
         });
 
         it('renders modal error when theres an custom error flash message', async () => {
-            checkout.use('CustomErrorFlashMessage');
+            checkout.use(CheckoutPreset.CustomErrorFlashMessage);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -148,7 +160,7 @@ describe('Checkout', () => {
         });
 
         it('does not render shipping checkout step if not required', async () => {
-            checkout.use('CartWithoutPhysicalItem');
+            checkout.use(CheckoutPreset.CheckoutWithDigitalCart);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -166,7 +178,7 @@ describe('Checkout', () => {
         });
 
         it('tracks a step viewed when a step is expanded', async () => {
-            checkout.use('CartWithShippingAddress');
+            checkout.use(CheckoutPreset.CheckoutWithShipping);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -219,13 +231,15 @@ describe('Checkout', () => {
         });
 
         it('logs unhandled error', async () => {
-            checkout.use('UnsupportedProvider');
+            checkout.use(CheckoutPreset.UnsupportedProvider);
 
             render(<CheckoutTest {...defaultProps} />);
 
             await checkout.waitForCustomerStep();
 
-            const error = new Error('Apple pay is not supported');
+            const error = new Error(
+                'Unable to proceed because payment method data is unavailable or not properly configured.',
+            );
 
             expect(defaultProps.errorLogger.log).toHaveBeenCalledWith(error);
         });
@@ -233,7 +247,7 @@ describe('Checkout', () => {
 
     describe('shipping step', () => {
         it('renders shipping component when shipping step is active', async () => {
-            checkout.use('CartWithBillingEmail');
+            checkout.use(CheckoutPreset.CheckoutWithBillingEmail);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -247,6 +261,20 @@ describe('Checkout', () => {
             expect(screen.getByText(/shipping method/i)).toBeInTheDocument();
         });
 
+        it('renders custom shipping method and locks shipping component', async () => {
+            checkout.use(CheckoutPreset.CheckoutWithCustomShippingAndBilling);
+
+            render(<CheckoutTest {...defaultProps} />);
+
+            await checkout.waitForPaymentStep();
+
+            expect(screen.getByText('Manual Order Custom Shipping Method')).toBeInTheDocument();
+            expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(2);
+            expect(screen.getByText(/test payment provider/i)).toBeInTheDocument();
+            expect(screen.getByText(/pay in store/i)).toBeInTheDocument();
+            expect(screen.getByText(/place order/i)).toBeInTheDocument();
+        });
+
         it('logs unhandled error', async () => {
             const error = new Error();
 
@@ -254,7 +282,7 @@ describe('Checkout', () => {
                 throw error;
             });
 
-            checkout.use('CartWithBillingEmail');
+            checkout.use(CheckoutPreset.CheckoutWithBillingEmail);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -266,7 +294,7 @@ describe('Checkout', () => {
 
     describe('billing step', () => {
         it('renders billing component when billing step is active', async () => {
-            checkout.use('CartWithShippingAddress');
+            checkout.use(CheckoutPreset.CheckoutWithShipping);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -281,13 +309,14 @@ describe('Checkout', () => {
         });
 
         it('renders shipping component with summary data', async () => {
-            checkout.use('CartWithShippingAddress');
+            checkout.use(CheckoutPreset.CheckoutWithShipping);
 
             render(<CheckoutTest {...defaultProps} />);
 
             await checkout.waitForBillingStep();
 
-            expect(screen.getByText(/new south wales,/i)).toBeInTheDocument();
+            expect(screen.getByText(/111 Testing Rd/i)).toBeInTheDocument();
+            expect(screen.getByText(/Cityville/i)).toBeInTheDocument();
             expect(screen.getByText(/pickup in store/i)).toBeInTheDocument();
         });
 
@@ -298,7 +327,7 @@ describe('Checkout', () => {
                 throw error;
             });
 
-            checkout.use('CartWithShippingAddress');
+            checkout.use(CheckoutPreset.CheckoutWithShipping);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -310,7 +339,7 @@ describe('Checkout', () => {
 
     describe('payment step', () => {
         it('renders payment component when payment step is active', async () => {
-            checkout.use('CartWithShippingAndBilling');
+            checkout.use(CheckoutPreset.CheckoutWithShippingAndBilling);
 
             render(<CheckoutTest {...defaultProps} />);
 
@@ -322,7 +351,7 @@ describe('Checkout', () => {
         });
 
         it('logs unhandled error', async () => {
-            checkout.use('CartWithShippingAndBilling');
+            checkout.use(CheckoutPreset.CheckoutWithShippingAndBilling);
 
             render(<CheckoutTest {...defaultProps} />);
 

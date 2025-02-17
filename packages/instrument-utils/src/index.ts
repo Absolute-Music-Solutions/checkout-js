@@ -44,6 +44,7 @@ export {
     assertIsCardInstrument,
     isAccountInstrument,
     isAchInstrument,
+    isSepaInstrument,
     isBankAccountInstrument,
     isCardInstrument,
     isInstrumentCardCodeRequired,
@@ -53,4 +54,5 @@ export {
     IsInstrumentCardNumberRequiredState,
     isInstrumentFeatureAvailable,
     shouldUseStripeLinkByMinimumAmount,
+    isHTMLElement,
 } from './guards';
